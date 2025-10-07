@@ -119,6 +119,106 @@ async def summarize(start_date, end_date, category=None):
         return {"status": "error", "message": f"Error summarizing expenses by date: {str(e)}"}
 
 
+@mcp.tool()
+async def delete_expense_by_id_catogery(catogery, expense_id):
+    """Delete an expense by ID."""
+    try:
+        async with aiosqlite.connect(DB_PATH) as c:
+            cur = await c.execute(
+                "DELETE FROM expenses WHERE id=? AND category=?",
+                (expense_id, catogery)
+            )
+            await c.commit()
+            if cur.rowcount == 0:
+                return {"status": "error", "message": "No expense found with the given ID and category."}
+            return {"status": "success", "message": "Expense deleted successfully."}
+    except Exception as e:
+        return {"status": "error", "message": f"Error deleting expense: {str(e)}"}
+    
+
+@mcp.tool()
+async def delete_expense_by_id(expense_id):
+    """Delete an expense by ID."""
+    try:
+        async with aiosqlite.connect(DB_PATH) as c:
+            cur = await c.execute(
+                "DELETE FROM expenses WHERE id=?",
+                (expense_id,)
+            )
+            await c.commit()
+            if cur.rowcount == 0:
+                return {"status": "error", "message": "No expense found with the given ID."}
+            return {"status": "success", "message": "Expense deleted successfully."}
+    except Exception as e:
+        return {"status": "error", "message": f"Error deleting expense: {str(e)}"}
+
+@mcp.tool()
+async def delete_expenses_by_category(category):
+    """Delete all expenses in a given category."""
+    try:
+        async with aiosqlite.connect(DB_PATH) as c:
+            cur = await c.execute(
+                "DELETE FROM expenses WHERE category=?",
+                (category,)
+            )
+            await c.commit()
+            return {"status": "success", "message": f"Deleted {cur.rowcount} expenses in category '{category}'."}
+    except Exception as e:
+        return {"status": "error", "message": f"Error deleting expenses by category: {str(e)}"}
+    
+
+@mcp.tool()
+async def delete_all_expenses():
+    """Delete all expenses from the database."""
+    try:
+        async with aiosqlite.connect(DB_PATH) as c:
+            cur = await c.execute("DELETE FROM expenses")
+            await c.commit()
+            return {"status": "success", "message": f"Deleted all expenses ({cur.rowcount} records)."}
+    except Exception as e:
+        return {"status": "error", "message": f"Error deleting all expenses: {str(e)}"}
+    
+
+
+@mcp.tool()
+async def update_expense(expense_id, date=None, amount=None, category=None, subcategory=None, note=None):
+    """Update an existing expense entry."""
+    try:
+        async with aiosqlite.connect(DB_PATH) as c:
+            fields = []
+            params = []
+
+            if date is not None:
+                fields.append("date=?")
+                params.append(date)
+            if amount is not None:
+                fields.append("amount=?")
+                params.append(amount)
+            if category is not None:
+                fields.append("category=?")
+                params.append(category)
+            if subcategory is not None:
+                fields.append("subcategory=?")
+                params.append(subcategory)
+            if note is not None:
+                fields.append("note=?")
+                params.append(note)
+
+            if not fields:
+                return {"status": "error", "message": "No fields to update."}
+
+            params.append(expense_id)
+            query = f"UPDATE expenses SET {', '.join(fields)} WHERE id=?"
+            cur = await c.execute(query, params)
+            await c.commit()
+
+            if cur.rowcount == 0:
+                return {"status": "error", "message": "No expense found with the given ID."}
+            return {"status": "success", "message": "Expense updated successfully."}
+    except Exception as e:
+        return {"status": "error", "message": f"Error updating expense: {str(e)}"}
+    
+
     
 
 @mcp.resource("expense:///categories", mime_type="application/json")  # Changed: expense:// → expense:///
