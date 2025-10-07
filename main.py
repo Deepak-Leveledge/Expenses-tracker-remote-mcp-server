@@ -1,39 +1,60 @@
-import random 
-from fastmcp import FastMCP
 import sqlite3
+from fastmcp import FastMCP
 import os
+import aiosqlite  # Changed: sqlite3 → aiosqlite
+import tempfile
+# Use temporary directory which should be writable
+TEMP_DIR = tempfile.gettempdir()
+DB_PATH = os.path.join(TEMP_DIR, "expenses.db")
+CATEGORIES_PATH = os.path.join(os.path.dirname(__file__), "categories.json")
 
+print(f"Database path: {DB_PATH}")
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'expenses.db')
-
-CATEGORIES_PATH = os.path.join(os.path.dirname(__file__), 'categories.json')
 mcp = FastMCP("Expenses-tracker")
 
-def init_db():
-    with sqlite3.connect(DB_PATH) as c:
-        c.execute("""
-                  CREATE TABLE IF NOT EXISTS expenses (
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  date TEXT NOT NULL,
-                  amount REAL NOT NULL,
-                  category TEXT NOT NULL,
-                  subcategory TEXT DEFAULT '',
-                  note TEXT DEFAULT '')
-                  """)
-        
+def init_db():  # Keep as sync for initialization
+    try:
+        # Use synchronous sqlite3 just for initialization
+        import sqlite3
+        with sqlite3.connect(DB_PATH) as c:
+            c.execute("PRAGMA journal_mode=WAL")
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS expenses(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    date TEXT NOT NULL,
+                    amount REAL NOT NULL,
+                    category TEXT NOT NULL,
+                    subcategory TEXT DEFAULT '',
+                    note TEXT DEFAULT ''
+                )
+            """)
+            # Test write access
+            c.execute("INSERT OR IGNORE INTO expenses(date, amount, category) VALUES ('2000-01-01', 0, 'test')")
+            c.execute("DELETE FROM expenses WHERE category = 'test'")
+            print("Database initialized successfully with write access")
+    except Exception as e:
+        print(f"Database initialization error: {e}")
+        raise
 
+# Initialize database synchronously at module load
 init_db()
 
 @mcp.tool()
-def add_expense(date, amount, category, subcategory="", note="" ) :
-    """Add a new expense to the database."""
-    with sqlite3.connect(DB_PATH) as c:
-        cur = c.execute("INSERT INTO expenses (date, amount, category, subcategory, note) VALUES (?, ?, ?, ?, ?)",
-                       (date, amount, category, subcategory, note))
-        
-                       
-       
-        return {"status":"ok","id":cur.lastrowid}
+async def add_expense(date, amount, category, subcategory="", note=""):  # Changed: added async
+    '''Add a new expense entry to the database.'''
+    try:
+        async with aiosqlite.connect(DB_PATH) as c:  # Changed: added async
+            cur = await c.execute(  # Changed: added await
+                "INSERT INTO expenses(date, amount, category, subcategory, note) VALUES (?,?,?,?,?)",
+                (date, amount, category, subcategory, note)
+            )
+            expense_id = cur.lastrowid
+            await c.commit()  # Changed: added await
+            return {"status": "success", "id": expense_id, "message": "Expense added successfully"}
+    except Exception as e:  # Changed: simplified exception handling
+        if "readonly" in str(e).lower():
+            return {"status": "error", "message": "Database is in read-only mode. Check file permissions."}
+        return {"status": "error", "message": f"Database error: {str(e)}"}
     
 
 
