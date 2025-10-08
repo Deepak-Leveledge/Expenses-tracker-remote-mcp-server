@@ -219,7 +219,23 @@ async def update_expense(expense_id, date=None, amount=None, category=None, subc
         return {"status": "error", "message": f"Error updating expense: {str(e)}"}
     
 
-    
+@mcp.prompt()
+def welcome():
+    return "You are an expert personal finance assistant. Help users track and manage their expenses effectively."
+
+@mcp.prompt(title="Add Expense")
+def add_expense_prompt()-> str:
+    return (
+        "To add a new expense, please provide the following details:\n"
+        "- Date (YYYY-MM-DD)\n"
+        "- Amount (e.g., 12.34)\n"
+        "- Category (e.g., Food & Dining)\n"
+        "- Subcategory (optional)\n"
+        "- Note (optional)\n"
+        "Example: 'Add an expense of 15.50 for Food & Dining on 2023-10-01 with note Lunch at cafe.'"
+    )
+
+
 
 @mcp.resource("expense:///categories", mime_type="application/json")  # Changed: expense:// → expense:///
 def categories():
